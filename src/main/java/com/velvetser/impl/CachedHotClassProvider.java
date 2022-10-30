@@ -2,20 +2,22 @@ package com.velvetser.impl;
 
 import com.velvetser.HotClass;
 import com.velvetser.HotClassProvider;
-import lombok.RequiredArgsConstructor;
 
+import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
-@RequiredArgsConstructor
 public class CachedHotClassProvider implements HotClassProvider {
 
-    private final Map<String, HotClass<?>> cache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, HotClass<?>> cache = new IdentityHashMap<>();
+    private final Function<Class<?>, HotClass<?>> providerGetFunc;
 
-    private final CachedHotClassProvider provider;
+    public CachedHotClassProvider(HotClassProvider provider) {
+        this.providerGetFunc = provider::get;
+    }
 
     @Override
     public <T> HotClass<T> get(Class<T> clazz) {
-        return (HotClass<T>) cache.computeIfAbsent(clazz.getName(), name -> provider.get(clazz));
+        return (HotClass<T>) cache.computeIfAbsent(clazz, providerGetFunc);
     }
 }

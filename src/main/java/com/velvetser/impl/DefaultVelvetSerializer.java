@@ -1,6 +1,11 @@
 package com.velvetser.impl;
 
-import com.velvetser.*;
+import com.velvetser.ClassSchema;
+import com.velvetser.HotClass;
+import com.velvetser.HotClassProvider;
+import com.velvetser.SchemaProvider;
+import com.velvetser.VelvetSerializer;
+import com.velvetser.VelvetSerializerException;
 import com.velvetser.stream.BetterInputStream;
 import com.velvetser.stream.BetterOutputStream;
 import lombok.RequiredArgsConstructor;
@@ -10,10 +15,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.TypeVariable;
-import java.util.Map;
 import java.util.function.Function;
 
-import static com.velvetser.impl.Constants.Control.*;
+import static com.velvetser.impl.Constants.Control.INDEXED_CLASS;
+import static com.velvetser.impl.Constants.Control.NAMED_CLASS;
+import static com.velvetser.impl.Constants.Control.NULL;
+import static com.velvetser.impl.Constants.Control.SAME_CLASS;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -75,13 +82,12 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     }
 
     private void serializeClass(BetterOutputStream bos, Class<?> actualClass, WriteContext context) {
-        String className = actualClass.getName();
-        Integer classId = context.getKnownClassId(className);
+        Integer classId = context.getKnownClassId(actualClass);
         if (classId == null) {
-            classId = context.putKnownClass(className);
+            classId = context.putKnownClass(actualClass);
             bos.writeVarInt(NAMED_CLASS);
             bos.writeVarInt(classId);
-            bos.writeString(className, false);
+            bos.writeString(actualClass.getName(), false);
         } else {
             bos.writeVarInt(INDEXED_CLASS);
             bos.writeVarInt(classId);
@@ -90,36 +96,63 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
 
     private <T> void serializeField(T object, BetterOutputStream
             bos, HotClass<T> hotClass, ClassSchema.Field<?> schemaField, WriteContext context) {
-        String fieldName = schemaField.name();
-        log.atDebug().setMessage(() -> ">> field {}.{} of object {}").addArgument(fieldName).addArgument(schemaField.clazz().getSimpleName()).addArgument(object).log();
-        Map<Class, Runnable> router = Map.of(
-                byte.class, () -> bos.writeByte(hotClass.getByte(fieldName, (T) object)),
-                short.class, () -> bos.writeShort(hotClass.getShort(fieldName, object))
-        );
-        Runnable objRoute = () -> serializeObjectField(object, schemaField, hotClass, bos, context);
-        router.getOrDefault(schemaField.clazz(), objRoute).run();
+        int fieldIndex = schemaField.index();
+        switch (schemaField.type()) {
+            case Byte:
+                bos.writeByte(hotClass.getByte(fieldIndex, (T) object));
+                break;
+            case Short:
+                bos.writeShort(hotClass.getShort(fieldIndex, object));
+                break;
+            default:
+                serializeObjectField(object, schemaField, hotClass, bos, context);
+        }
     }
 
     private <T, F> void serializeObjectField(T object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterOutputStream bos, WriteContext
-            context) {
-        F fieldValue = hotClass.get(schemaField.name(), object, schemaField.clazz());
+                                                     context) {
+        F fieldValue = hotClass.get(schemaField.index(), object, schemaField.clazz());
         serializeObjectFieldValue(schemaField, bos, context, fieldValue);
     }
 
-    private <F> void serializeObjectFieldValue(ClassSchema.Field<F> schemaField, BetterOutputStream bos, WriteContext context, F fieldValue) {
-        switch (schemaField.def()) {
-            case ClassSchema.StringFieldDef sfd -> bos.writeString((String) fieldValue, false);
-            case ClassSchema.ListFieldDef lfd -> serializeList(fieldValue, schemaField.clazz(), bos);
-            case ClassSchema.FinalFieldDef ffd -> serializeFinalObject(fieldValue, schemaField.clazz(), bos, context);
-            case ClassSchema.PolymorphicFieldDef pfd ->
-                    serializePolyObject(fieldValue, schemaField.clazz(), bos, context);
-            case ClassSchema.FinalObjectArrayFieldDef oafd ->
-                    serializeFinalObjectArray(fieldValue, schemaField.clazz(), bos, context);
-            case ClassSchema.PolyObjectArrayFieldDef oafd ->
-                    serializePolyObjectArray(fieldValue, schemaField.clazz(), bos, context);
-            default -> throw new VelvetSerializerException("Unknown field definition");
+    private <F> void serializeObjectFieldValue(ClassSchema.Field<F> schemaField, BetterOutputStream
+            bos, WriteContext context, F fieldValue) {
+        /*
+        new ActionSwitcher<>()
+                .withCase(ClassSchema.StringFieldDef.class, sfd -> bos.writeString((String) fieldValue, false))
+                .withCase(ClassSchema.ListFieldDef.class, lfd -> serializeList(fieldValue, schemaField.clazz(), bos))
+                .withCase(ClassSchema.FinalFieldDef.class, ffd -> serializeFinalObject(fieldValue, schemaField.clazz(), bos, context))
+                .withCase(ClassSchema.PolymorphicFieldDef.class, ffd -> serializePolyObject(fieldValue, schemaField.clazz(), bos, context))
+                .withCase(ClassSchema.FinalObjectArrayFieldDef.class, oafd ->
+                        serializeFinalObjectArray(fieldValue, schemaField.clazz(), bos, context))
+                .withCase(ClassSchema.PolyObjectArrayFieldDef.class, oafd ->
+                        serializePolyObjectArray(fieldValue, schemaField.clazz(), bos, context))
+                .withDefault(sf -> {throw new VelvetSerializerException("Unknown field definition " + sf.getClass());})
+                .run(schemaField.def());
+        */
+
+        switch (schemaField.type()) {
+            case String:
+                bos.writeString((String) fieldValue, false);
+                break;
+            case FinalObject:
+                serializeFinalObject(fieldValue, schemaField.clazz(), bos, context);
+                break;
+            case PolyObject:
+                serializePolyObject(fieldValue, schemaField.clazz(), bos, context);
+                break;
+            case FinalObjectArray:
+                serializeFinalObjectArray(fieldValue, schemaField.clazz(), bos, context);
+                break;
+            case PolyObjectArray:
+                serializePolyObjectArray(fieldValue, schemaField.clazz(), bos, context);
+                break;
+
+            default:
+                throw new VelvetSerializerException("Unknown field definition");
         }
     }
+
 
     private <F> void serializePolyObjectArray(F fieldValue, Class<F> clazz, BetterOutputStream
             bos, WriteContext context) {
@@ -189,36 +222,48 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         HotClass<T> hotClass = hotClassProvider.get(clazz);
         T object = hotClass.instantiate();
         for (ClassSchema.Field<?> schemaField : schema.fields()) {
-            String fieldName = schemaField.name();
-            Map<Class, Runnable> router = Map.of(
-                    byte.class, () -> hotClass.setByte(fieldName, object, bis.readByte()),
-                    short.class, () -> hotClass.setShort(fieldName, object, bis.readShort())
-            );
-            Runnable objRoute = () -> deserializeField(object, schemaField, hotClass, bis, context);
-            router.getOrDefault(schemaField.clazz(), objRoute).run();
+            int fieldIndex = schemaField.index();
+            switch (schemaField.clazz().getSimpleName()) {
+                case "byte":
+                    hotClass.setByte(fieldIndex, object, bis.readByte());
+                    break;
+                case "short":
+                    hotClass.setShort(fieldIndex, object, bis.readShort());
+                    break;
+                default:
+                    deserializeField(object, schemaField, hotClass, bis, context);
+            }
         }
         return object;
     }
 
-    private <T, F> void deserializeField(T object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterInputStream bis, ReadContext context) {
+    private <T, F> void deserializeField(T
+                                                 object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterInputStream bis, ReadContext context) {
         F fieldValue = deserializeFieldValue(schemaField, bis, context);
-        hotClass.set(schemaField.name(), object, fieldValue);
+        hotClass.set(schemaField.index(), object, fieldValue);
     }
 
-    private <F> F deserializeFieldValue(ClassSchema.Field<F> schemaField, BetterInputStream bis, ReadContext context) {
-        return switch (schemaField.def()) {
-            case ClassSchema.StringFieldDef sfd -> (F) bis.readString();
-            case ClassSchema.ListFieldDef lfd -> deserializeList(bis);
-            case ClassSchema.FinalFieldDef ffd -> deserializeFinalObject(bis, schemaField.clazz(), context);
-            case ClassSchema.PolymorphicFieldDef pfd -> deserializePolyObject(bis, schemaField.clazz(), context);
-
-            case ClassSchema.FinalObjectArrayFieldDef foafd ->
-                    deserializeFinalObjectArray(bis, schemaField.clazz(), context);
-            case ClassSchema.PolyObjectArrayFieldDef poafd ->
-                    deserializePolyObjectArray(bis, schemaField.clazz(), context);
-
-            default -> throw new VelvetSerializerException("Unknown field definition");
+    private <F> F
+    deserializeFieldValue(ClassSchema.Field<F> schemaField, BetterInputStream bis, ReadContext context) {
+        /*
+        switch(schemaField.type()) {
+            case String: return (F) bis.readString();
+            case
         };
+                .withCase(ClassSchema.StringFieldDef.class, sfd -> )
+                .withCase(ClassSchema.FinalFieldDef.class, ffd -> deserializeFinalObject(bis, schemaField.clazz(), context))
+                .withCase(ClassSchema.PolymorphicFieldDef.class, pfd -> deserializePolyObject(bis, schemaField.clazz(), context))
+                .withCase(ClassSchema.FinalObjectArrayFieldDef.class, foafd ->
+                        deserializeFinalObjectArray(bis, schemaField.clazz(), context))
+                .withCase(ClassSchema.PolyObjectArrayFieldDef.class, poafd ->
+                        deserializePolyObjectArray(bis, schemaField.clazz(), context))
+
+                .withDefault(() -> {
+                    throw new VelvetSerializerException("Unknown field definition");
+                })
+                .run(schemaField.def());
+        */
+        return null;
     }
 
 

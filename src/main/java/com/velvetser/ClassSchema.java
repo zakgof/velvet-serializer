@@ -1,53 +1,33 @@
 package com.velvetser;
 
-import java.util.List;
-
 public interface ClassSchema<T> {
 
-    List<Field<?>> fields();
+    Field<?>[] fields();
 
     public interface Field<F> {
+
+        int index();
+
         String name();
 
         Class<F> clazz();
 
-        FieldDef def();
+        FieldType type();
+
+        FieldDetail detail();
     }
 
-    public interface FieldDef {
+    public enum FieldType {
+        Byte,
+        Short,
+        Int,
+        FinalObject,
+        PolyObject,
+        FinalObjectArray,
+        PolyObjectArray,
+        String
     }
 
-    class ByteFieldDef implements FieldDef {
-        public static ByteFieldDef INSTANCE = new ByteFieldDef();
+    public interface FieldDetail {
     }
-
-    class ShortFieldDef implements FieldDef {
-        public static final ShortFieldDef INSTANCE = new ShortFieldDef();
-    }
-
-    class IntFieldDef implements FieldDef {
-        public static final IntFieldDef INSTANCE = new IntFieldDef();
-    }
-
-    class FinalFieldDef implements FieldDef {
-    }
-
-    class PolymorphicFieldDef implements FieldDef {
-    }
-
-    class PolyObjectArrayFieldDef implements FieldDef {
-    }
-
-    class FinalObjectArrayFieldDef implements FieldDef {
-    }
-
-    class StringFieldDef implements FieldDef {
-        public static final StringFieldDef INSTANCE = new StringFieldDef();
-    }
-
-    class ListFieldDef implements FieldDef {
-        public static final ListFieldDef INSTANCE = new ListFieldDef();
-    }
-
-
 }

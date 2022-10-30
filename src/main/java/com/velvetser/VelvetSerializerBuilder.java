@@ -4,8 +4,8 @@ import com.velvetser.impl.*;
 
 public class VelvetSerializerBuilder {
 
-    private HotClassProvider hotCache = new ReflectionHotClassProvider();
-    private SchemaProvider schemaCache = new CachedSchemaProvider(new ReflectionSchemaProvider((ReflectionHotClassProvider) hotCache));
+    private HotClassProvider hotCache = new CachedHotClassProvider(new ReflectionHotClassProvider());
+    private SchemaProvider schemaCache = new CachedSchemaProvider(new ReflectionSchemaProvider(hotCache));
 
     public static VelvetSerializerBuilder create() {
         return new VelvetSerializerBuilder();

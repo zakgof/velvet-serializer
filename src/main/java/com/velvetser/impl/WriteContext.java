@@ -1,18 +1,19 @@
 package com.velvetser.impl;
 
-import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
 public class WriteContext {
 
-    private Map<String, Integer> nameToid = new HashMap<>();
-    public Integer getKnownClassId(String className) {
-        return nameToid.get(className);
+    private final Map<Class<?>, Integer> nameToid = new IdentityHashMap<>();
+
+    public Integer getKnownClassId(Class<?> clazz) {
+        return nameToid.get(clazz);
     }
 
-    public int putKnownClass(String className) {
+    public int putKnownClass(Class<?> clazz) {
         int id = nameToid.size();
-        nameToid.put(className, id);
+        nameToid.put(clazz, id);
         return id;
     }
 }

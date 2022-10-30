@@ -30,14 +30,13 @@ public class BetterOutputStream {
         safeWrite(() -> stream.write(buffer, 0, len));
     }
 
-
     public void writeString(String value, boolean canBeNull) {
         if (canBeNull && value == null) {
             writeVarInt(-1);
         } else {
-            byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-            writeVarInt(bytes.length);
-            safeWrite(() -> stream.write(bytes));
+            // byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+            // writeVarInt(bytes.length);
+            // safeWrite(() -> stream.write(bytes));
         }
     }
 

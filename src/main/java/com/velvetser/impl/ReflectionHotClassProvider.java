@@ -11,7 +11,9 @@ import org.objenesis.instantiator.ObjectInstantiator;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ReflectionHotClassProvider implements HotClassProvider {
@@ -27,25 +29,29 @@ public class ReflectionHotClassProvider implements HotClassProvider {
 
         @Getter
         @Accessors(fluent = true)
-        private final Map<String, Field> fields;
+        private final Map<String, Integer> fieldIndexing;
+        private final Field[] fields;
         private final ObjectInstantiator<T> instantiator;
 
         public ReflectionHotClass(Class<T> clazz, ObjectInstantiator<T> instantiator) {
             this.fields = getAllFields(clazz);
+            this.fieldIndexing = new HashMap<>();
+            for (int f = 0; f < fields.length; f++)
+                fieldIndexing.put(fields[f].getName(), f);
             this.instantiator = instantiator;
         }
 
-        private static Map<String, Field> getAllFields(Class<?> clazz) {
-            Map<String, Field> map = new HashMap<>();
-            for (Class<?> cl = clazz; cl != null; cl = cl.getSuperclass()) {
+        private static Field[] getAllFields(Class<?> clazz) {
+            List<Field> fieldList = new ArrayList<>(32);
+            for (Class<?> cl = clazz; cl != null && cl != Object.class; cl = cl.getSuperclass()) {
                 for (Field field : cl.getDeclaredFields()) {
                     if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0) {
                         field.setAccessible(true);
-                        map.put(field.getName(), field);
+                        fieldList.add(field);
                     }
                 }
             }
-            return map;
+            return fieldList.toArray(new Field[0]);
         }
 
         @Override
@@ -54,58 +60,61 @@ public class ReflectionHotClassProvider implements HotClassProvider {
         }
 
         @Override
-        public <F> F get(String fieldName, T object, Class<F> clazz) {
-            return safeCalc(() -> clazz.cast(fields.get(fieldName).get(object)));
-        }
-
-        @Override
-        public byte getByte(String fieldName, T object) {
-            return safeCalc(() -> fields.get(fieldName).getByte(object));
-        }
-
-        @Override
-        public short getShort(String fieldName, T object) {
-            return safeCalc(() -> fields.get(fieldName).getShort(object));
-        }
-
-        @Override
-        public <F> void set(String fieldName, T object, F fieldValue) {
-            safeAction(() -> fields.get(fieldName).set(object, fieldValue));
-        }
-
-        @Override
-        public void setByte(String fieldName, T object, byte fieldValue) {
-            safeAction(() -> fields.get(fieldName).setByte(object, fieldValue));
-        }
-
-        @Override
-        public void setShort(String fieldName, T object, short fieldValue) {
-            safeAction(() -> fields.get(fieldName).setShort(object, fieldValue));
-        }
-
-        interface ReflectionCalc<R> {
-            R run() throws ReflectiveOperationException;
-        }
-
-        interface ReflectionAction {
-            void run() throws ReflectiveOperationException;
-        }
-
-        private <R> R safeCalc(ReflectionCalc<R> action) {
+        public <F> F get(int fieldIndex, T object, Class<F> clazz) {
             try {
-                return action.run();
+                return clazz.cast(fields[fieldIndex].get(object));
             } catch (ReflectiveOperationException e) {
                 throw new VelvetSerializerException(e);
             }
         }
 
-        private void safeAction(ReflectionAction action) {
+        @Override
+        public byte getByte(int fieldIndex, T object) {
             try {
-                action.run();
+                return fields[fieldIndex].getByte(object);
             } catch (ReflectiveOperationException e) {
                 throw new VelvetSerializerException(e);
             }
         }
 
+        @Override
+        public short getShort(int fieldIndex, T object) {
+            try {
+                return fields[fieldIndex].getShort(object);
+            } catch (ReflectiveOperationException e) {
+                throw new VelvetSerializerException(e);
+            }
+        }
+
+        @Override
+        public <F> void set(int fieldIndex, T object, F fieldValue) {
+            try {
+                fields[fieldIndex].set(object, fieldValue);
+            } catch (ReflectiveOperationException e) {
+                throw new VelvetSerializerException(e);
+            }
+        }
+
+        @Override
+        public void setByte(int fieldIndex, T object, byte fieldValue) {
+            try {
+                fields[fieldIndex].setByte(object, fieldValue);
+            } catch (ReflectiveOperationException e) {
+                throw new VelvetSerializerException(e);
+            }
+        }
+
+        @Override
+        public void setShort(int fieldIndex, T object, short fieldValue) {
+            try {
+                fields[fieldIndex].setShort(object, fieldValue);
+            } catch (ReflectiveOperationException e) {
+                throw new VelvetSerializerException(e);
+            }
+        }
+
+        Field[] fields() {
+            return fields;
+        }
     }
 }
