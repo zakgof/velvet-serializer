@@ -34,3 +34,9 @@ test {
             "-XX:StartFlightRecording=duration=200s,filename=D:\\p\\velvet2.jfr",
             "-Xlog:jfr=debug"])
 }
+
+compileJava.options.encoding = 'UTF-8'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}

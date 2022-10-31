@@ -23,6 +23,11 @@ public class BetterInputStream {
         return (short) ((buffer[1] & 0xFF) << 8 | (buffer[0] & 0xFF));
     }
 
+    public char readChar() {
+        bufferRead(2);
+        return (char) ((buffer[1] & 0xFF) << 8 | (buffer[0] & 0xFF));
+    }
+
     private void bufferRead(int len) {
         safeRead(() -> {
             if (len != stream.readNBytes(buffer, 0, len)) {
@@ -76,6 +81,10 @@ public class BetterInputStream {
                 throw new VelvetSerializerException("End of read stream while deserializing");
             }
         });
+    }
+
+    public void readBytes(int length, byte[] value) {
+        safeReadBytes(value, length);
     }
 
     interface ReadRunnable {

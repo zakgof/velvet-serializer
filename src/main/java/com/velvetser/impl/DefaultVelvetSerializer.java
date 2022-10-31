@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
-import java.lang.reflect.TypeVariable;
 import java.util.function.Function;
 
 import static com.velvetser.impl.Constants.Control.INDEXED_CLASS;
@@ -104,6 +103,18 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
             case Short:
                 bos.writeShort(hotClass.getShort(fieldIndex, object));
                 break;
+            case Int:
+                bos.writeVarInt(hotClass.getInt(fieldIndex, object));
+                break;
+            case Long:
+                bos.writeVarLong(hotClass.getLong(fieldIndex, object));
+                break;
+            case Bool:
+                bos.writeByte(hotClass.getBoolean(fieldIndex, object) ? (byte)1 : 0);
+                break;
+            case Char:
+                bos.writeChar(hotClass.getChar(fieldIndex, object));
+                break;
             default:
                 serializeObjectField(object, schemaField, hotClass, bos, context);
         }
@@ -117,20 +128,6 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
 
     private <F> void serializeObjectFieldValue(ClassSchema.Field<F> schemaField, BetterOutputStream
             bos, WriteContext context, F fieldValue) {
-        /*
-        new ActionSwitcher<>()
-                .withCase(ClassSchema.StringFieldDef.class, sfd -> bos.writeString((String) fieldValue, false))
-                .withCase(ClassSchema.ListFieldDef.class, lfd -> serializeList(fieldValue, schemaField.clazz(), bos))
-                .withCase(ClassSchema.FinalFieldDef.class, ffd -> serializeFinalObject(fieldValue, schemaField.clazz(), bos, context))
-                .withCase(ClassSchema.PolymorphicFieldDef.class, ffd -> serializePolyObject(fieldValue, schemaField.clazz(), bos, context))
-                .withCase(ClassSchema.FinalObjectArrayFieldDef.class, oafd ->
-                        serializeFinalObjectArray(fieldValue, schemaField.clazz(), bos, context))
-                .withCase(ClassSchema.PolyObjectArrayFieldDef.class, oafd ->
-                        serializePolyObjectArray(fieldValue, schemaField.clazz(), bos, context))
-                .withDefault(sf -> {throw new VelvetSerializerException("Unknown field definition " + sf.getClass());})
-                .run(schemaField.def());
-        */
-
         switch (schemaField.type()) {
             case String:
                 bos.writeString((String) fieldValue, false);
@@ -147,12 +144,20 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
             case PolyObjectArray:
                 serializePolyObjectArray(fieldValue, schemaField.clazz(), bos, context);
                 break;
-
+            case ByteArray:
+                serializeByteArray((byte[])fieldValue, bos, context);
+                break;
             default:
                 throw new VelvetSerializerException("Unknown field definition");
         }
     }
 
+    private void serializeByteArray(byte[] fieldValue, BetterOutputStream bos, WriteContext context) {
+        if (writeNullOr(fieldValue, bos)) {
+            bos.writeVarInt(fieldValue.length);
+            bos.writeBytes(fieldValue);
+        }
+    }
 
     private <F> void serializePolyObjectArray(F fieldValue, Class<F> clazz, BetterOutputStream
             bos, WriteContext context) {
@@ -178,11 +183,6 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
                 serializeFinalObject(element, elementClazz, bos, context);
             }
         }
-    }
-
-
-    private <F> void serializeList(F fieldValue, Class<F> clazz, BetterOutputStream bos) {
-        TypeVariable<Class<F>> typeParameter = clazz.getTypeParameters()[0];
     }
 
     private <T> T deserializeFinalObject(BetterInputStream bis, Class<T> clazz, ReadContext context) {
@@ -223,12 +223,24 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         T object = hotClass.instantiate();
         for (ClassSchema.Field<?> schemaField : schema.fields()) {
             int fieldIndex = schemaField.index();
-            switch (schemaField.clazz().getSimpleName()) {
-                case "byte":
+            switch (schemaField.type()) {
+                case Byte:
                     hotClass.setByte(fieldIndex, object, bis.readByte());
                     break;
-                case "short":
+                case Short:
                     hotClass.setShort(fieldIndex, object, bis.readShort());
+                    break;
+                case Int:
+                    hotClass.setInt(fieldIndex, object, bis.readVarInt());
+                    break;
+                case Long:
+                    hotClass.setLong(fieldIndex, object, bis.readVarLong());
+                    break;
+                case Bool:
+                    hotClass.setBoolean(fieldIndex, object, bis.readByte() == 1);
+                    break;
+                case Char:
+                    hotClass.setChar(fieldIndex, object, bis.readChar());
                     break;
                 default:
                     deserializeField(object, schemaField, hotClass, bis, context);
@@ -245,27 +257,69 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
 
     private <F> F
     deserializeFieldValue(ClassSchema.Field<F> schemaField, BetterInputStream bis, ReadContext context) {
-        /*
         switch(schemaField.type()) {
             case String: return (F) bis.readString();
-            case
-        };
-                .withCase(ClassSchema.StringFieldDef.class, sfd -> )
-                .withCase(ClassSchema.FinalFieldDef.class, ffd -> deserializeFinalObject(bis, schemaField.clazz(), context))
-                .withCase(ClassSchema.PolymorphicFieldDef.class, pfd -> deserializePolyObject(bis, schemaField.clazz(), context))
-                .withCase(ClassSchema.FinalObjectArrayFieldDef.class, foafd ->
-                        deserializeFinalObjectArray(bis, schemaField.clazz(), context))
-                .withCase(ClassSchema.PolyObjectArrayFieldDef.class, poafd ->
-                        deserializePolyObjectArray(bis, schemaField.clazz(), context))
-
-                .withDefault(() -> {
-                    throw new VelvetSerializerException("Unknown field definition");
-                })
-                .run(schemaField.def());
-        */
-        return null;
+            case FinalObject: return deserializeFinalObject(bis, schemaField.clazz(), context);
+            case PolyObject: return deserializePolyObject(bis, schemaField.clazz(), context);
+            case FinalObjectArray: return deserializeFinalObjectArray(bis, schemaField.clazz(), context);
+            case PolyObjectArray: return deserializePolyObjectArray(bis, schemaField.clazz(), context);
+            case ByteArray: return (F)deserializeByteArray(bis, context);
+            case ShortArray: return (F)deserializeShortArray(bis, context);
+            case IntArray: return (F)deserializeIntArray(bis, context);
+            case LongArray: return (F)deserializeLongArray(bis, context);
+            case BoolArray: return (F)deserializeBoolArray(bis, context);
+            case CharArray: return (F)deserializeCharArray(bis, context);
+            default: throw new VelvetSerializerException("Unknown field definition");
+        }
     }
 
+    private byte[] deserializeByteArray(BetterInputStream bis, ReadContext context) {
+        return readNullOr(bis, length -> {
+            byte[] value = new byte[length];
+            bis.readBytes(length, value);
+            return value;
+        });
+    }
+
+    private short[] deserializeShortArray(BetterInputStream bis, ReadContext context) {
+        return readNullOr(bis, length -> {
+            short[] value = new short[length];
+            bis.readShorts(length, value);
+            return value;
+        });
+    }
+
+    private int[] deserializeIntArray(BetterInputStream bis, ReadContext context) {
+        return readNullOr(bis, length -> {
+            byte[] value = new byte[length];
+            bis.readVarInts(length, value);
+            return value;
+        });
+    }
+
+    private long[] deserializeLongArray(BetterInputStream bis, ReadContext context) {
+        return readNullOr(bis, length -> {
+            byte[] value = new byte[length];
+            bis.readVarLongs(length, value);
+            return value;
+        });
+    }
+
+    private char[] deserializeCharArray(BetterInputStream bis, ReadContext context) {
+        return readNullOr(bis, length -> {
+            byte[] value = new byte[length];
+            bis.readBytes(length, value);
+            return value;
+        });
+    }
+
+    private boolean[] deserializeBoolArray(BetterInputStream bis, ReadContext context) {
+        return readNullOr(bis, length -> {
+            byte[] value = new byte[length];
+            bis.readBytes(length, value);
+            return value;
+        });
+    }
 
     private <F> F deserializeFinalObjectArray(BetterInputStream bis, Class<F> clazz, ReadContext context) {
         return readNullOr(bis, length -> {

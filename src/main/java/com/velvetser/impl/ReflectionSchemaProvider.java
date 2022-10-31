@@ -11,18 +11,28 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Map;
 
-import static com.velvetser.ClassSchema.FieldType.Byte;
-import static com.velvetser.ClassSchema.FieldType.FinalObject;
-import static com.velvetser.ClassSchema.FieldType.FinalObjectArray;
-import static com.velvetser.ClassSchema.FieldType.Int;
-import static com.velvetser.ClassSchema.FieldType.PolyObject;
-import static com.velvetser.ClassSchema.FieldType.PolyObjectArray;
-import static com.velvetser.ClassSchema.FieldType.Short;
-import static com.velvetser.ClassSchema.FieldType.String;
+import static com.velvetser.ClassSchema.FieldType.*;
 
 @RequiredArgsConstructor
 public class ReflectionSchemaProvider implements SchemaProvider {
 
+    private static final Map<Class<?>, ClassSchema.FieldType> BASECLASS_MAPPING = Map.of(
+            byte.class, Byte,
+            short.class, Short,
+            int.class, Int,
+            long.class, Long,
+            boolean.class, Bool,
+            char.class, Char,
+            String.class, String
+    );
+    private static final Map<Class<?>, ClassSchema.FieldType> ARRAYCLASS_MAPPING = Map.of(
+            byte.class, ByteArray,
+            short.class, ShortArray,
+            int.class, IntArray,
+            long.class, LongArray,
+            boolean.class, BoolArray,
+            char.class, CharArray
+    );
     private final HotClassProvider hotCache;
 
     @Override
@@ -50,20 +60,17 @@ public class ReflectionSchemaProvider implements SchemaProvider {
     }
 
     private static ClassSchema.FieldType fieldType(Class<?> fieldClazz) {
-        Map<Class<?>, ClassSchema.FieldType> primivites = Map.of(
-                byte.class, Byte,
-                short.class, Short,
-                int.class, Int,
-                String.class, String
-        );
-        ClassSchema.FieldType type = primivites.get(fieldClazz);
+        ClassSchema.FieldType type = BASECLASS_MAPPING.get(fieldClazz);
         if (type == null) {
             if (fieldClazz.isArray()) {
                 Class<?> componentClazz = fieldClazz.getComponentType();
-                if ((componentClazz.getModifiers() & Modifier.FINAL) != 0) {
-                    type = FinalObjectArray;
-                } else {
-                    type = PolyObjectArray;
+                type = ARRAYCLASS_MAPPING.get(componentClazz);
+                if (type == null) {
+                    if ((componentClazz.getModifiers() & Modifier.FINAL) != 0) {
+                        type = FinalObjectArray;
+                    } else {
+                        type = PolyObjectArray;
+                    }
                 }
             } else {
                 if ((fieldClazz.getModifiers() & Modifier.FINAL) != 0) {

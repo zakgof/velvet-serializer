@@ -17,8 +17,20 @@ public class Data {
     private final InnerInterface innerInterface2;
 
     private final InnerInterface[] objArrayNull;
-
     private final InnerInterface[] objArray;
+
+    private final byte[] byteArrayNull;
+    private final byte[] byteArray;
+    private final short[] shortArrayNull;
+    private final short[] shortArray;
+    private final int[] intArrayNull;
+    private final int[] intArray;
+    private final long[] longArrayNull;
+    private final long[] longArray;
+    private final boolean[] booleanArrayNull;
+    private final boolean[] booleanArray;
+    private final char[] charArrayNull;
+    private final char[] charArray;
 
     // private final LocalDateTime localDateTime;
 
@@ -49,6 +61,18 @@ public class Data {
         this.objArrayNull = null;
         this.objArray = new InnerInterface[] {new InnerFinal(seed+4), null, new PolyOther(seed+5)};
         // this.localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(random.nextLong()), ZoneId.systemDefault());
+        this.byteArrayNull = null;
+        this.byteArray = new byte[] {0, 1, -1, 127, -128};
+        this.shortArrayNull = null;
+        this.shortArray = new short[] {0, 1, -1, Short.MAX_VALUE, Short.MIN_VALUE};
+        this.intArrayNull = null;
+        this.intArray = new int[] {0, 1, -1, Integer.MAX_VALUE, Integer.MIN_VALUE};
+        this.longArrayNull = null;
+        this.longArray = new long[] {0, 1, -1, Long.MAX_VALUE, Long.MIN_VALUE};
+        this.charArrayNull = null;
+        this.charArray = new char[] {0, 1, 2, Character.MAX_VALUE, Character.MIN_VALUE};
+        this.booleanArrayNull = null;
+        this.booleanArray = new boolean[] {true, false};
 
         this.str = IntStream.range(0, 10)
                 .map(i -> (int)'A' + random.nextInt(26))

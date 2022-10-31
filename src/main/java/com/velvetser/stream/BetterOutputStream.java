@@ -9,7 +9,9 @@ import java.nio.charset.StandardCharsets;
 public class BetterOutputStream {
 
     private final OutputStream stream;
-    private final byte[] buffer = new byte[16];
+    private final byte[] buffer = new byte[1024];
+    private final char[] charbuffer = new char[512];
+
 
     public BetterOutputStream(OutputStream stream) {
         this.stream = stream;
@@ -26,17 +28,31 @@ public class BetterOutputStream {
         bufferWrite(2);
     }
 
+    public void writeChar(char value) {
+        buffer[0] = (byte) value;
+        buffer[1] = (byte) (value >> 8);
+        bufferWrite(2);
+    }
+
     private void bufferWrite(int len) {
-        safeWrite(() -> stream.write(buffer, 0, len));
+        try {
+            stream.write(buffer, 0, len);
+        } catch (IOException e) {
+            throw new VelvetSerializerException("Write error", e);
+        }
     }
 
     public void writeString(String value, boolean canBeNull) {
         if (canBeNull && value == null) {
             writeVarInt(-1);
         } else {
-            // byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-            // writeVarInt(bytes.length);
-            // safeWrite(() -> stream.write(bytes));
+            byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+            writeVarInt(bytes.length);
+            try {
+                stream.write(bytes);
+            } catch (IOException e) {
+                throw new VelvetSerializerException("Write error", e);
+            }
         }
     }
 
@@ -74,13 +90,9 @@ public class BetterOutputStream {
         bufferWrite(len);
     }
 
-    interface WriteRunnable {
-        void run() throws IOException;
-    }
-
-    private void safeWrite(WriteRunnable runnable) {
+    public void writeBytes(byte[] bytes) {
         try {
-            runnable.run();
+            stream.write(bytes, 0, bytes.length);
         } catch (IOException e) {
             throw new VelvetSerializerException("Write error", e);
         }
