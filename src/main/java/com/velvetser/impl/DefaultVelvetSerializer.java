@@ -110,7 +110,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
                 bos.writeVarLong(hotClass.getLong(fieldIndex, object));
                 break;
             case Bool:
-                bos.writeByte(hotClass.getBoolean(fieldIndex, object) ? (byte)1 : 0);
+                bos.writeByte(hotClass.getBoolean(fieldIndex, object) ? (byte) 1 : 0);
                 break;
             case Char:
                 bos.writeChar(hotClass.getChar(fieldIndex, object));
@@ -121,7 +121,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     }
 
     private <T, F> void serializeObjectField(T object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterOutputStream bos, WriteContext
-                                                     context) {
+            context) {
         F fieldValue = hotClass.get(schemaField.index(), object, schemaField.clazz());
         serializeObjectFieldValue(schemaField, bos, context, fieldValue);
     }
@@ -145,7 +145,22 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
                 serializePolyObjectArray(fieldValue, schemaField.clazz(), bos, context);
                 break;
             case ByteArray:
-                serializeByteArray((byte[])fieldValue, bos, context);
+                serializeByteArray((byte[]) fieldValue, bos, context);
+                break;
+            case ShortArray:
+                serializeShortArray((short[]) fieldValue, bos, context);
+                break;
+            case IntArray:
+                serializeIntArray((int[]) fieldValue, bos, context);
+                break;
+            case LongArray:
+                serializeLongArray((long[]) fieldValue, bos, context);
+                break;
+            case BoolArray:
+                serializeBoolArray((boolean[]) fieldValue, bos, context);
+                break;
+            case CharArray:
+                serializeCharArray((char[]) fieldValue, bos, context);
                 break;
             default:
                 throw new VelvetSerializerException("Unknown field definition");
@@ -156,6 +171,51 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         if (writeNullOr(fieldValue, bos)) {
             bos.writeVarInt(fieldValue.length);
             bos.writeBytes(fieldValue);
+        }
+    }
+
+    private void serializeShortArray(short[] fieldValue, BetterOutputStream bos, WriteContext context) {
+        if (writeNullOr(fieldValue, bos)) {
+            bos.writeVarInt(fieldValue.length);
+            for (short element : fieldValue) {
+                bos.writeShort(element);
+            }
+        }
+    }
+
+    private void serializeIntArray(int[] fieldValue, BetterOutputStream bos, WriteContext context) {
+        if (writeNullOr(fieldValue, bos)) {
+            bos.writeVarInt(fieldValue.length);
+            for (int element : fieldValue) {
+                bos.writeVarInt(element);
+            }
+        }
+    }
+
+    private void serializeLongArray(long[] fieldValue, BetterOutputStream bos, WriteContext context) {
+        if (writeNullOr(fieldValue, bos)) {
+            bos.writeVarInt(fieldValue.length);
+            for (long element : fieldValue) {
+                bos.writeVarLong(element);
+            }
+        }
+    }
+
+    private void serializeBoolArray(boolean[] fieldValue, BetterOutputStream bos, WriteContext context) {
+        if (writeNullOr(fieldValue, bos)) {
+            bos.writeVarInt(fieldValue.length);
+            for (boolean element : fieldValue) {
+                bos.writeByte(element ? (byte)1 : 0);
+            }
+        }
+    }
+
+    private void serializeCharArray(char[] fieldValue, BetterOutputStream bos, WriteContext context) {
+        if (writeNullOr(fieldValue, bos)) {
+            bos.writeVarInt(fieldValue.length);
+            for (char element : fieldValue) {
+                bos.writeChar(element);
+            }
         }
     }
 
@@ -257,19 +317,31 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
 
     private <F> F
     deserializeFieldValue(ClassSchema.Field<F> schemaField, BetterInputStream bis, ReadContext context) {
-        switch(schemaField.type()) {
-            case String: return (F) bis.readString();
-            case FinalObject: return deserializeFinalObject(bis, schemaField.clazz(), context);
-            case PolyObject: return deserializePolyObject(bis, schemaField.clazz(), context);
-            case FinalObjectArray: return deserializeFinalObjectArray(bis, schemaField.clazz(), context);
-            case PolyObjectArray: return deserializePolyObjectArray(bis, schemaField.clazz(), context);
-            case ByteArray: return (F)deserializeByteArray(bis, context);
-            case ShortArray: return (F)deserializeShortArray(bis, context);
-            case IntArray: return (F)deserializeIntArray(bis, context);
-            case LongArray: return (F)deserializeLongArray(bis, context);
-            case BoolArray: return (F)deserializeBoolArray(bis, context);
-            case CharArray: return (F)deserializeCharArray(bis, context);
-            default: throw new VelvetSerializerException("Unknown field definition");
+        switch (schemaField.type()) {
+            case String:
+                return (F) bis.readString();
+            case FinalObject:
+                return deserializeFinalObject(bis, schemaField.clazz(), context);
+            case PolyObject:
+                return deserializePolyObject(bis, schemaField.clazz(), context);
+            case FinalObjectArray:
+                return deserializeFinalObjectArray(bis, schemaField.clazz(), context);
+            case PolyObjectArray:
+                return deserializePolyObjectArray(bis, schemaField.clazz(), context);
+            case ByteArray:
+                return (F) deserializeByteArray(bis, context);
+            case ShortArray:
+                return (F) deserializeShortArray(bis, context);
+            case IntArray:
+                return (F) deserializeIntArray(bis, context);
+            case LongArray:
+                return (F) deserializeLongArray(bis, context);
+            case BoolArray:
+                return (F) deserializeBoolArray(bis, context);
+            case CharArray:
+                return (F) deserializeCharArray(bis, context);
+            default:
+                throw new VelvetSerializerException("Unknown field definition");
         }
     }
 
@@ -284,39 +356,44 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     private short[] deserializeShortArray(BetterInputStream bis, ReadContext context) {
         return readNullOr(bis, length -> {
             short[] value = new short[length];
-            bis.readShorts(length, value);
+            for (int i = 0; i < length; i++)
+                value[i] = bis.readShort();
             return value;
         });
     }
 
     private int[] deserializeIntArray(BetterInputStream bis, ReadContext context) {
         return readNullOr(bis, length -> {
-            byte[] value = new byte[length];
-            bis.readVarInts(length, value);
+            int[] value = new int[length];
+            for (int i = 0; i < length; i++)
+                value[i] = bis.readVarInt();
             return value;
         });
     }
 
     private long[] deserializeLongArray(BetterInputStream bis, ReadContext context) {
         return readNullOr(bis, length -> {
-            byte[] value = new byte[length];
-            bis.readVarLongs(length, value);
+            long[] value = new long[length];
+            for (int i = 0; i < length; i++)
+                value[i] = bis.readVarLong();
             return value;
         });
     }
 
     private char[] deserializeCharArray(BetterInputStream bis, ReadContext context) {
         return readNullOr(bis, length -> {
-            byte[] value = new byte[length];
-            bis.readBytes(length, value);
+            char[] value = new char[length];
+            for (int i = 0; i < length; i++)
+                value[i] = bis.readChar();
             return value;
         });
     }
 
     private boolean[] deserializeBoolArray(BetterInputStream bis, ReadContext context) {
         return readNullOr(bis, length -> {
-            byte[] value = new byte[length];
-            bis.readBytes(length, value);
+            boolean[] value = new boolean[length];
+            for (int i = 0; i < length; i++)
+                value[i] = bis.readByte() == 1;
             return value;
         });
     }

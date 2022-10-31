@@ -8,6 +8,10 @@ import java.util.stream.IntStream;
 public class Data {
     private final byte primitiveByte;
     private final short primitiveShort;
+    private final int primitiveInt;
+    private final long primitiveLong;
+    private final char primitiveChar;
+    private final boolean primitiveBool;
     private final InnerFinal innerFinal;
     private final InnerFinal innerFinalNull;
 
@@ -52,6 +56,10 @@ public class Data {
         Random random = new Random(seed);
         this.primitiveByte = (byte)random.nextInt();
         this.primitiveShort = (short) random.nextInt();
+        this.primitiveInt = random.nextInt();
+        this.primitiveLong = (short) random.nextLong();
+        this.primitiveBool = random.nextInt(2) == 0;
+        this.primitiveChar = (char)(random.nextInt(Character.MAX_VALUE + 1));
 
         this.innerFinal = new InnerFinal(seed+1);
         this.innerFinalNull = null;
