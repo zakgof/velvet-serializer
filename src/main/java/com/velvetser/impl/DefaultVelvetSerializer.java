@@ -32,7 +32,9 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     public <T> void serialize(T object, OutputStream stream) {
         Class clazz = object.getClass();
         ClassSchema.Field field = schemaProvider.top(clazz);
-        serializeObjectFieldValue(field, new BetterOutputStream(stream), new WriteContext(), object);
+        BetterOutputStream bos = new BetterOutputStream(stream);
+        serializeObjectFieldValue(field, bos, new WriteContext(), object);
+        bos.flush();
     }
 
     @Override
@@ -186,9 +188,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     private void serializeIntArray(int[] fieldValue, BetterOutputStream bos, WriteContext context) {
         if (writeNullOr(fieldValue, bos)) {
             bos.writeVarInt(fieldValue.length);
-            for (int element : fieldValue) {
-                bos.writeVarInt(element);
-            }
+            bos.writeVarInts(fieldValue);
         }
     }
 
@@ -205,7 +205,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         if (writeNullOr(fieldValue, bos)) {
             bos.writeVarInt(fieldValue.length);
             for (boolean element : fieldValue) {
-                bos.writeByte(element ? (byte)1 : 0);
+                bos.writeByte(element ? (byte) 1 : 0);
             }
         }
     }

@@ -35,14 +35,9 @@ public class Data {
     private final boolean[] booleanArray;
     private final char[] charArrayNull;
     private final char[] charArray;
+    private final String str;
 
     // private final LocalDateTime localDateTime;
-
-//    private final char primitiveChar;
-//    private final int primitiveInt;
-//    private final long primitiveLong;
-//    private final boolean primitiveBoolean;
-
 //    private final Byte objectByte;
 //    private final Short objectShort;
 //    private final Character objectCharacter;
@@ -50,7 +45,6 @@ public class Data {
 //    private final Long objectLong;
 //    private final Boolean objectBoolean;
 
-    private final String str;
 
     public Data(long seed) {
         Random random = new Random(seed);
@@ -81,10 +75,11 @@ public class Data {
         this.charArray = new char[] {0, 1, 2, Character.MAX_VALUE, Character.MIN_VALUE};
         this.booleanArrayNull = null;
         this.booleanArray = new boolean[] {true, false};
-
         this.str = IntStream.range(0, 10)
                 .map(i -> (int)'A' + random.nextInt(26))
                 .mapToObj(c -> Character.toString((char)c))
                 .collect(Collectors.joining());
+
     }
 }
+

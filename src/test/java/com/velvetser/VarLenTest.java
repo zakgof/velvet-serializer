@@ -4,7 +4,6 @@ import com.velvetser.stream.BetterInputStream;
 import com.velvetser.stream.BetterOutputStream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -19,17 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class VarLenTest {
 
     @ParameterizedTest
-    @CsvSource({"0,00", "1,01", "127,7F"})
-    void varInt(int i, String expected) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        BetterOutputStream bos = new BetterOutputStream(baos);
-        bos.writeVarInt(i);
-        byte[] actual = baos.toByteArray();
-        assertEquals(expected, bytesToHex(actual));
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 63, 64, 8191, 8192,
+    @ValueSource(ints = {0, 1, 2, 63, 64, 127, -127, 128, -128, 8191, 8192,
             1048575, 1048576, 134217727, 134217728,
             -1, -2, -63, -64, -65, -8191, -8192, -8193,
             -1048576, -1048577, -134217728, -134217729,
@@ -39,6 +28,7 @@ class VarLenTest {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         BetterOutputStream bos = new BetterOutputStream(baos);
         bos.writeVarInt(i);
+        bos.flush();
         byte[] bytes = baos.toByteArray();
         BetterInputStream bis = new BetterInputStream(new ByteArrayInputStream(bytes));
         int actual = bis.readVarInt();
@@ -52,6 +42,7 @@ class VarLenTest {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         BetterOutputStream bos = new BetterOutputStream(baos);
         bos.writeVarLong(l);
+        bos.flush();
         byte[] bytes = baos.toByteArray();
         BetterInputStream bis = new BetterInputStream(new ByteArrayInputStream(bytes));
         long actual = bis.readVarLong();
