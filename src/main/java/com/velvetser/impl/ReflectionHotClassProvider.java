@@ -25,7 +25,7 @@ public class ReflectionHotClassProvider implements HotClassProvider {
         return new ReflectionHotClass<>(clazz, objenesis.getInstantiatorOf(clazz));
     }
 
-    static class ReflectionHotClass<T> implements HotClass<T> {
+    static class ReflectionHotClass<T> implements HotClass<T>, FieldsProvider<T> {
 
         @Getter
         @Accessors(fluent = true)
@@ -185,7 +185,7 @@ public class ReflectionHotClassProvider implements HotClassProvider {
             }
         }
 
-        Field[] fields() {
+        public Field[] fields() {
             return fields;
         }
     }

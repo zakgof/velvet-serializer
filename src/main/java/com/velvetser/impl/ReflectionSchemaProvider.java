@@ -37,8 +37,8 @@ public class ReflectionSchemaProvider implements SchemaProvider {
 
     @Override
     public <T> ClassSchema<T> get(Class<T> clazz) {
-        ReflectionHotClassProvider.ReflectionHotClass<T> hotClass = (ReflectionHotClassProvider.ReflectionHotClass<T>) hotCache.get(clazz);
-        Field[] fields = hotClass.fields();
+        FieldsProvider<T> fp = (FieldsProvider<T>) hotCache.get(clazz);
+        Field[] fields = fp.fields();
         ClassSchema.Field<?>[] schemaFields = new ClassSchema.Field<?>[fields.length];
         for (int f=0; f<fields.length; f++) {
             schemaFields[f] = createSchemaField(fields[f], f);

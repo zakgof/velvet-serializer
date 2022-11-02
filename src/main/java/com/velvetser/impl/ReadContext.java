@@ -8,14 +8,19 @@ import java.util.Map;
 public class ReadContext {
 
     private Map<Integer, String> idToName = new HashMap<>();
+    private Map<String, Class<?>> nameToClass = new HashMap<>();
 
 
     public Class<?> loadById(int classId) {
         String className = idToName.get(classId);
-        return loadClass(className);
+        return getClassByName(className);
     }
 
-    private static Class<?> loadClass(String className) {
+    private Class<?> getClassByName(String className) {
+        return nameToClass.computeIfAbsent(className, this::loadClass);
+    }
+
+    private Class<?> loadClass(String className) {
         try {
             return Class.forName(className);
         } catch (ClassNotFoundException e) {
@@ -25,6 +30,6 @@ public class ReadContext {
 
     public Class<?> putAndLoad(int classId, String name) {
         idToName.put(classId, name);
-        return loadClass(name);
+        return getClassByName(name);
     }
 }

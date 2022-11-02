@@ -11,11 +11,14 @@ import java.nio.charset.StandardCharsets;
 public class BetterInputStream {
 
     private final InputStream stream;
-    private final byte[] buffer = new byte[8];
+    private final byte[] buffer = new byte[4096];
 
     public byte readByte() {
-        bufferRead(1);
-        return buffer[0];
+        try {
+            return (byte) stream.read();
+        } catch (IOException e) {
+            throw new VelvetSerializerException("Read error", e);
+        }
     }
 
     public short readShort() {
@@ -29,11 +32,7 @@ public class BetterInputStream {
     }
 
     private void bufferRead(int len) {
-        safeRead(() -> {
-            if (len != stream.readNBytes(buffer, 0, len)) {
-                throw new VelvetSerializerException("End of read stream while deserializing");
-            }
-        });
+        readBytes(buffer, len);
     }
 
     public int readVarInt() {
@@ -71,31 +70,18 @@ public class BetterInputStream {
             dest = buffer;
         else
             dest = new byte[control];
-        safeReadBytes(dest, control);
+        readBytes(dest, control);
         return new String(dest, 0, control, StandardCharsets.UTF_8);
     }
 
-    private void safeReadBytes(byte[] dest, int length) {
-        safeRead(() -> {
-            if (length != stream.readNBytes(dest, 0, length)) {
-                throw new VelvetSerializerException("End of read stream while deserializing");
-            }
-        });
-    }
-
-    public void readBytes(int length, byte[] value) {
-        safeReadBytes(value, length);
-    }
-
-    interface ReadRunnable {
-        void run() throws IOException;
-    }
-
-    private void safeRead(ReadRunnable runnable) {
+    public void readBytes(byte[] dest, int length) {
         try {
-            runnable.run();
+            for (int i = 0; i < length; i++)
+                dest[i] = (byte) stream.read();
+
         } catch (IOException e) {
             throw new VelvetSerializerException("Read error", e);
         }
     }
+
 }

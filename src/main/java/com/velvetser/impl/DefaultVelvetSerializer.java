@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
-import java.util.function.Function;
 
 import static com.velvetser.impl.Constants.Control.INDEXED_CLASS;
 import static com.velvetser.impl.Constants.Control.NAMED_CLASS;
@@ -40,7 +39,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     @Override
     public <T> T deserialize(InputStream stream, Class<T> clazz) {
         ClassSchema.Field<T> field = schemaProvider.top(clazz);
-        return deserializeFieldValue(field, new BetterInputStream(stream), new ReadContext());
+        return deserializeObjectFieldValue(field, new BetterInputStream(stream), new ReadContext());
     }
 
     private <T> void serializeFinalObject(T object, Class<? extends T> clazz, BetterOutputStream
@@ -246,22 +245,26 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     }
 
     private <T> T deserializeFinalObject(BetterInputStream bis, Class<T> clazz, ReadContext context) {
-        return readNullOr(bis, control -> {
-            if (control != SAME_CLASS) {
-                throw new VelvetSerializerException("Unknown final object control byte: " + control);
-            }
-            return deserializeObjectContent(bis, clazz, context);
-        });
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        if (control != SAME_CLASS) {
+            throw new VelvetSerializerException("Unknown final object control byte: " + control);
+        }
+        return deserializeObjectContent(bis, clazz, context);
     }
 
     private <T> T deserializePolyObject(BetterInputStream bis, Class<T> clazz, ReadContext context) {
-        return readNullOr(bis, control -> {
-            if (control == SAME_CLASS) {
-                return deserializeObjectContent(bis, clazz, context);
-            }
-            Class<?> actualClass = deserializeClass(bis, context, control);
-            return (T) deserializeObjectContent(bis, actualClass, context);
-        });
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        if (control == SAME_CLASS) {
+            return deserializeObjectContent(bis, clazz, context);
+        }
+        Class<?> actualClass = deserializeClass(bis, context, control);
+        return (T) deserializeObjectContent(bis, actualClass, context);
     }
 
     private Class<?> deserializeClass(BetterInputStream bis, ReadContext context, int control) {
@@ -303,20 +306,19 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
                     hotClass.setChar(fieldIndex, object, bis.readChar());
                     break;
                 default:
-                    deserializeField(object, schemaField, hotClass, bis, context);
+                    deserializeObjectField(object, schemaField, hotClass, bis, context);
             }
         }
         return object;
     }
 
-    private <T, F> void deserializeField(T
+    private <T, F> void deserializeObjectField(T
                                                  object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterInputStream bis, ReadContext context) {
-        F fieldValue = deserializeFieldValue(schemaField, bis, context);
+        F fieldValue = deserializeObjectFieldValue(schemaField, bis, context);
         hotClass.set(schemaField.index(), object, fieldValue);
     }
 
-    private <F> F
-    deserializeFieldValue(ClassSchema.Field<F> schemaField, BetterInputStream bis, ReadContext context) {
+    private <F> F deserializeObjectFieldValue(ClassSchema.Field<F> schemaField, BetterInputStream bis, ReadContext context) {
         switch (schemaField.type()) {
             case String:
                 return (F) bis.readString();
@@ -346,90 +348,95 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     }
 
     private byte[] deserializeByteArray(BetterInputStream bis, ReadContext context) {
-        return readNullOr(bis, length -> {
-            byte[] value = new byte[length];
-            bis.readBytes(length, value);
-            return value;
-        });
-    }
-
-    private short[] deserializeShortArray(BetterInputStream bis, ReadContext context) {
-        return readNullOr(bis, length -> {
-            short[] value = new short[length];
-            for (int i = 0; i < length; i++)
-                value[i] = bis.readShort();
-            return value;
-        });
-    }
-
-    private int[] deserializeIntArray(BetterInputStream bis, ReadContext context) {
-        return readNullOr(bis, length -> {
-            int[] value = new int[length];
-            for (int i = 0; i < length; i++)
-                value[i] = bis.readVarInt();
-            return value;
-        });
-    }
-
-    private long[] deserializeLongArray(BetterInputStream bis, ReadContext context) {
-        return readNullOr(bis, length -> {
-            long[] value = new long[length];
-            for (int i = 0; i < length; i++)
-                value[i] = bis.readVarLong();
-            return value;
-        });
-    }
-
-    private char[] deserializeCharArray(BetterInputStream bis, ReadContext context) {
-        return readNullOr(bis, length -> {
-            char[] value = new char[length];
-            for (int i = 0; i < length; i++)
-                value[i] = bis.readChar();
-            return value;
-        });
-    }
-
-    private boolean[] deserializeBoolArray(BetterInputStream bis, ReadContext context) {
-        return readNullOr(bis, length -> {
-            boolean[] value = new boolean[length];
-            for (int i = 0; i < length; i++)
-                value[i] = bis.readByte() == 1;
-            return value;
-        });
-    }
-
-    private <F> F deserializeFinalObjectArray(BetterInputStream bis, Class<F> clazz, ReadContext context) {
-        return readNullOr(bis, length -> {
-            Class<?> componentClazz = clazz.getComponentType();
-            Object[] array = (Object[]) Array.newInstance(componentClazz, length);
-            for (int i = 0; i < length; i++) {
-                array[i] = deserializeFinalObject(bis, componentClazz, context);
-            }
-            return (F) array;
-        });
-    }
-
-    private <F> F deserializePolyObjectArray(BetterInputStream bis, Class<F> clazz, ReadContext context) {
-        return readNullOr(bis, length -> {
-            Class<?> componentClazz = clazz.getComponentType();
-            Object[] array = (Object[]) Array.newInstance(componentClazz, length);
-            for (int i = 0; i < length; i++) {
-                array[i] = deserializePolyObject(bis, componentClazz, context);
-            }
-            return (F) array;
-        });
-    }
-
-    private <F> F readNullOr(BetterInputStream bis, Function<Integer, F> nonNullAction) {
         int control = bis.readVarInt();
         if (control == NULL) {
             return null;
         }
-        return nonNullAction.apply(control);
+        byte[] value = new byte[control];
+        bis.readBytes(value, control);
+        return value;
     }
 
-    private <F> F deserializeList(BetterInputStream bis) {
-        return null;
+    private short[] deserializeShortArray(BetterInputStream bis, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        short[] value = new short[control];
+        for (int i = 0; i < control; i++)
+            value[i] = bis.readShort();
+        return value;
     }
 
+    private int[] deserializeIntArray(BetterInputStream bis, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        int[] value = new int[control];
+        for (int i = 0; i < control; i++)
+            value[i] = bis.readVarInt();
+        return value;
+    }
+
+    private long[] deserializeLongArray(BetterInputStream bis, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        long[] value = new long[control];
+        for (int i = 0; i < control; i++)
+            value[i] = bis.readVarLong();
+        return value;
+    }
+
+    private char[] deserializeCharArray(BetterInputStream bis, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        char[] value = new char[control];
+        for (int i = 0; i < control; i++)
+            value[i] = bis.readChar();
+        return value;
+    }
+
+    private boolean[] deserializeBoolArray(BetterInputStream bis, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        boolean[] value = new boolean[control];
+        for (int i = 0; i < control; i++)
+            value[i] = bis.readByte() == 1;
+        return value;
+
+    }
+
+    private <F> F deserializeFinalObjectArray(BetterInputStream bis, Class<F> clazz, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        Class<?> componentClazz = clazz.getComponentType();
+        Object[] array = (Object[]) Array.newInstance(componentClazz, control);
+        for (int i = 0; i < control; i++) {
+            array[i] = deserializeFinalObject(bis, componentClazz, context);
+        }
+        return (F) array;
+
+    }
+
+    private <F> F deserializePolyObjectArray(BetterInputStream bis, Class<F> clazz, ReadContext context) {
+        int control = bis.readVarInt();
+        if (control == NULL) {
+            return null;
+        }
+        Class<?> componentClazz = clazz.getComponentType();
+        Object[] array = (Object[]) Array.newInstance(componentClazz, control);
+        for (int i = 0; i < control; i++) {
+            array[i] = deserializePolyObject(bis, componentClazz, context);
+        }
+        return (F) array;
+    }
 }
