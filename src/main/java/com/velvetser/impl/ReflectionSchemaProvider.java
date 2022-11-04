@@ -9,6 +9,8 @@ import lombok.experimental.Accessors;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Map;
 
 import static com.velvetser.ClassSchema.FieldType.*;
@@ -48,15 +50,16 @@ public class ReflectionSchemaProvider implements SchemaProvider {
 
     @Override
     public <T> ClassSchema.Field<T> top(Class<T> clazz) {
-        return new DefaultSchemaField<>(0,"", clazz, fieldType(clazz), null);
+        return new DefaultSchemaField<>(0,"", clazz, null, fieldType(clazz), null);
     }
 
     private ClassSchema.Field<?> createSchemaField(Field field, int index) {
         Class<?> fieldClazz = field.getType();
         String name = field.getName();
-
+        Type genericType = field.getGenericType();
+        Type[] params = (genericType instanceof ParameterizedType) ? ((ParameterizedType)genericType).getActualTypeArguments() : null;
         ClassSchema.FieldType type = fieldType(fieldClazz);
-        return new DefaultSchemaField<>(index, name, fieldClazz, type, null);
+        return new DefaultSchemaField<>(index, name, fieldClazz, params, type, null);
     }
 
     private static ClassSchema.FieldType fieldType(Class<?> fieldClazz) {
@@ -90,6 +93,7 @@ public class ReflectionSchemaProvider implements SchemaProvider {
         private final int index;
         private final String name;
         private final Class<F> clazz;
+        private final Type[] typeParams;
         private final ClassSchema.FieldType type;
         private final ClassSchema.FieldDetail detail;
     }

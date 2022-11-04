@@ -1,6 +1,9 @@
 package com.velvetser.impl;
 
 import com.velvetser.ClassSchema;
+import com.velvetser.ClassSerializer;
+import com.velvetser.CommonDeserializer;
+import com.velvetser.CommonSerializer;
 import com.velvetser.HotClass;
 import com.velvetser.HotClassProvider;
 import com.velvetser.SchemaProvider;
@@ -9,11 +12,11 @@ import com.velvetser.VelvetSerializerException;
 import com.velvetser.stream.BetterInputStream;
 import com.velvetser.stream.BetterOutputStream;
 import com.velvetser.stream.VelvetInput;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.OutputStream;
 import java.lang.reflect.Array;
+import java.lang.reflect.Type;
 
 import static com.velvetser.impl.Constants.Control.INDEXED_CLASS;
 import static com.velvetser.impl.Constants.Control.NAMED_CLASS;
@@ -21,16 +24,18 @@ import static com.velvetser.impl.Constants.Control.NULL;
 import static com.velvetser.impl.Constants.Control.SAME_CLASS;
 
 @Slf4j
-@RequiredArgsConstructor
-public class DefaultVelvetSerializer implements VelvetSerializer {
+public class DefaultVelvetSerializer implements VelvetSerializer, CommonSerializer, CommonDeserializer {
 
-    private final HotClassProvider hotClassProvider;
-    private final SchemaProvider schemaProvider;
+    private final ClassCache classCache;
+
+    public DefaultVelvetSerializer(HotClassProvider hotClassProvider, SchemaProvider schemaProvider, ClassSerializerProvider serializerProvider) {
+        this.classCache = new ClassCache(hotClassProvider, schemaProvider, serializerProvider);
+    }
 
     @Override
     public <T> void serialize(T object, OutputStream stream) {
         Class clazz = object.getClass();
-        ClassSchema.Field field = schemaProvider.top(clazz);
+        ClassSchema.Field field = classCache.context(clazz).topSchema();
         BetterOutputStream bos = new BetterOutputStream(stream);
         serializeObjectFieldValue(field, bos, new WriteContext(), object);
         bos.flush();
@@ -38,15 +43,15 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
 
     @Override
     public <T> T deserialize(VelvetInput input, Class<T> clazz) {
-        ClassSchema.Field<T> field = schemaProvider.top(clazz);
+        ClassSchema.Field<T> field = classCache.context(clazz).topSchema();
         return deserializeObjectFieldValue(field, new BetterInputStream(input), new ReadContext());
     }
 
-    private <T> void serializeFinalObject(T object, Class<? extends T> clazz, BetterOutputStream
+    public <T> void serializeFinalObject(T object, Class<? extends T> clazz, Type[] typeParams, BetterOutputStream
             bos, WriteContext context) {
         if (writeNullOr(object, bos)) {
             bos.writeVarInt(SAME_CLASS);
-            serializeObjectContent(object, (Class) clazz, bos, context);
+            serializeObjectContent(object, (Class) clazz, typeParams, bos, context);
         }
     }
 
@@ -58,16 +63,26 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         return true;
     }
 
-    private <T> void serializeObjectContent(T object, Class<T> clazz, BetterOutputStream bos, WriteContext
+    private <T> void serializeObjectContent(T object, Class<T> clazz, Type[] typeParams, BetterOutputStream bos, WriteContext
             context) {
-        ClassSchema<T> schema = schemaProvider.get(clazz);
-        HotClass<T> hotClass = hotClassProvider.get(clazz);
+        ClassCache.ClassContext<T> classContext = classCache.context(clazz);
+        ClassSerializer<T> cs = classContext.serializer();
+        if (cs == null)
+            serializeObjectContentByFields(object, clazz, bos, context, classContext);
+        else
+            cs.serialize(object, clazz, typeParams, bos, context, this);
+    }
+
+    private <T> void serializeObjectContentByFields(T object, Class<T> clazz, BetterOutputStream bos, WriteContext
+            context, ClassCache.ClassContext<T> classContext) {
+        ClassSchema<T> schema = classContext.fieldSchema();
+        HotClass<T> hotClass = classContext.hotClass();
         for (ClassSchema.Field<?> schemaField : schema.fields()) {
             serializeField(object, bos, hotClass, schemaField, context);
         }
     }
 
-    private <T> void serializePolyObject(T object, Class<T> clazz, BetterOutputStream bos, WriteContext context) {
+    public <T> void serializePolyObject(T object, Class<? extends T> clazz, Type[] typeParams, BetterOutputStream bos, WriteContext context) {
         if (object == null) {
             bos.writeVarInt(NULL);
             return;
@@ -78,7 +93,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         } else {
             serializeClass(bos, actualClass, context);
         }
-        serializeObjectContent(object, (Class) actualClass, bos, context);
+        serializeObjectContent(object, (Class) actualClass, typeParams, bos, context);
     }
 
     private void serializeClass(BetterOutputStream bos, Class<?> actualClass, WriteContext context) {
@@ -134,10 +149,10 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
                 bos.writeString((String) fieldValue, false);
                 break;
             case FinalObject:
-                serializeFinalObject(fieldValue, schemaField.clazz(), bos, context);
+                serializeFinalObject(fieldValue, schemaField.clazz(), schemaField.typeParams(), bos, context);
                 break;
             case PolyObject:
-                serializePolyObject(fieldValue, schemaField.clazz(), bos, context);
+                serializePolyObject(fieldValue, schemaField.clazz(), schemaField.typeParams(), bos, context);
                 break;
             case FinalObjectArray:
                 serializeFinalObjectArray(fieldValue, schemaField.clazz(), bos, context);
@@ -226,7 +241,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
             bos.writeVarInt(length);
             Class elementClazz = clazz.getComponentType();
             for (Object element : array) {
-                serializePolyObject(element, elementClazz, bos, context);
+                serializePolyObject(element, elementClazz, null, bos, context);
             }
         }
     }
@@ -239,12 +254,13 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
             bos.writeVarInt(length);
             Class elementClazz = clazz.getComponentType();
             for (Object element : array) {
-                serializeFinalObject(element, elementClazz, bos, context);
+                serializeFinalObject(element, elementClazz, null, bos, context);
             }
         }
     }
 
-    private <T> T deserializeFinalObject(BetterInputStream bis, Class<T> clazz, ReadContext context) {
+    @Override
+    public <T> T deserializeFinalObject(BetterInputStream bis, Class<T> clazz, Type[] typeParams, ReadContext context) {
         int control = bis.readVarInt();
         if (control == NULL) {
             return null;
@@ -252,19 +268,20 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         if (control != SAME_CLASS) {
             throw new VelvetSerializerException("Unknown final object control byte: " + control);
         }
-        return deserializeObjectContent(bis, clazz, context);
+        return deserializeObjectContent(bis, clazz, typeParams, context);
     }
 
-    private <T> T deserializePolyObject(BetterInputStream bis, Class<T> clazz, ReadContext context) {
+    @Override
+    public <T> T deserializePolyObject(BetterInputStream bis, Class<T> clazz, Type[] typeParams, ReadContext context) {
         int control = bis.readVarInt();
         if (control == NULL) {
             return null;
         }
         if (control == SAME_CLASS) {
-            return deserializeObjectContent(bis, clazz, context);
+            return deserializeObjectContent(bis, clazz, typeParams, context);
         }
         Class<?> actualClass = deserializeClass(bis, context, control);
-        return (T) deserializeObjectContent(bis, actualClass, context);
+        return (T) deserializeObjectContent(bis, actualClass, typeParams, context);
     }
 
     private Class<?> deserializeClass(BetterInputStream bis, ReadContext context, int control) {
@@ -280,9 +297,18 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         throw new VelvetSerializerException("Unknown control byte when reading polymorphic class " + control);
     }
 
-    private <T> T deserializeObjectContent(BetterInputStream bis, Class<T> clazz, ReadContext context) {
-        ClassSchema<T> schema = schemaProvider.get(clazz);
-        HotClass<T> hotClass = hotClassProvider.get(clazz);
+    private <T> T deserializeObjectContent(BetterInputStream bis, Class<T> clazz, Type[] typeParams, ReadContext context) {
+        ClassCache.ClassContext<T> classContext = classCache.context(clazz);
+        ClassSerializer<T> cs = classContext.serializer();
+        if (cs == null)
+            return deserializeObjectContentByField(bis, clazz, context, classContext);
+        else
+            return cs.deserialize(bis, clazz, typeParams, context, this);
+    }
+
+    private <T> T deserializeObjectContentByField(BetterInputStream bis, Class<T> clazz, ReadContext context, ClassCache.ClassContext<T> classContext) {
+        ClassSchema<T> schema = classContext.fieldSchema();
+        HotClass<T> hotClass = classContext.hotClass();
         T object = hotClass.instantiate();
         for (ClassSchema.Field<?> schemaField : schema.fields()) {
             int fieldIndex = schemaField.index();
@@ -313,7 +339,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     }
 
     private <T, F> void deserializeObjectField(T
-                                                 object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterInputStream bis, ReadContext context) {
+                                                       object, ClassSchema.Field<F> schemaField, HotClass<T> hotClass, BetterInputStream bis, ReadContext context) {
         F fieldValue = deserializeObjectFieldValue(schemaField, bis, context);
         hotClass.set(schemaField.index(), object, fieldValue);
     }
@@ -323,9 +349,9 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
             case String:
                 return (F) bis.readString();
             case FinalObject:
-                return deserializeFinalObject(bis, schemaField.clazz(), context);
+                return deserializeFinalObject(bis, schemaField.clazz(), schemaField.typeParams(), context);
             case PolyObject:
-                return deserializePolyObject(bis, schemaField.clazz(), context);
+                return deserializePolyObject(bis, schemaField.clazz(), schemaField.typeParams(), context);
             case FinalObjectArray:
                 return deserializeFinalObjectArray(bis, schemaField.clazz(), context);
             case PolyObjectArray:
@@ -421,7 +447,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         Class<?> componentClazz = clazz.getComponentType();
         Object[] array = (Object[]) Array.newInstance(componentClazz, control);
         for (int i = 0; i < control; i++) {
-            array[i] = deserializeFinalObject(bis, componentClazz, context);
+            array[i] = deserializeFinalObject(bis, componentClazz, null, context);
         }
         return (F) array;
 
@@ -435,7 +461,7 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
         Class<?> componentClazz = clazz.getComponentType();
         Object[] array = (Object[]) Array.newInstance(componentClazz, control);
         for (int i = 0; i < control; i++) {
-            array[i] = deserializePolyObject(bis, componentClazz, context);
+            array[i] = deserializePolyObject(bis, componentClazz, null, context);
         }
         return (F) array;
     }

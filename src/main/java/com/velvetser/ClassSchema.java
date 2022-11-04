@@ -1,10 +1,12 @@
 package com.velvetser;
 
+import java.lang.reflect.Type;
+
 public interface ClassSchema<T> {
 
     Field<?>[] fields();
 
-    public interface Field<F> {
+    interface Field<F> {
 
         int index();
 
@@ -12,12 +14,14 @@ public interface ClassSchema<T> {
 
         Class<F> clazz();
 
+        Type[] typeParams();
+
         FieldType type();
 
         FieldDetail detail();
     }
 
-    public enum FieldType {
+    enum FieldType {
         Byte,
         Short,
         Int,
@@ -37,6 +41,7 @@ public interface ClassSchema<T> {
         String
     }
 
-    public interface FieldDetail {
+    interface FieldDetail {
     }
 }
+

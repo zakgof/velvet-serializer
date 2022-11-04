@@ -69,22 +69,22 @@ class PerfTest {
 
     @Test
     void velvetDeserializeAll() {
-        velvetDeserialize(VELVET_BYTES, original.getClass(), 10000);
+        velvetDeserialize(VELVET_BYTES, original.getClass(), 1_000);
     }
 
     @Test
     void kryoDeserializeAll() {
-        kryoDeserialize(KRYO_BYTES, original.getClass(), 10000);
+        kryoDeserialize(KRYO_BYTES, original.getClass(), 1_000);
     }
 
     @Test
     void velvetSerializeAll() throws InterruptedException {
-        velvetSerialize(original, 10_000, 20_000_000);
+        velvetSerialize(original, 1_000, 20_000_000);
     }
 
     @Test
     void kryoSerializeAll() throws InterruptedException {
-        kryoSerialize(original, 10_000, 20_000_000);
+        kryoSerialize(original, 1_000, 20_000_000);
     }
 
     private static Stream<Arguments> stringsSamples() {

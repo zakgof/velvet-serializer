@@ -10,7 +10,6 @@ public class BetterOutputStream {
 
     private final OutputStream stream;
     private final byte[] buffer = new byte[4096];
-    private final byte[] small = new byte[9];
     private int cursor = 0;
 
     public BetterOutputStream(OutputStream stream) {

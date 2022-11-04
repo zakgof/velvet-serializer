@@ -3,6 +3,7 @@ package com.velvetser;
 public interface HotClass<T> {
 
     T instantiate();
+    
     <F> F get(int fieldIndex, T object, Class<F> clazz);
 
     byte getByte(int fieldIndex, T object);
