@@ -8,10 +8,10 @@ import com.velvetser.VelvetSerializer;
 import com.velvetser.VelvetSerializerException;
 import com.velvetser.stream.BetterInputStream;
 import com.velvetser.stream.BetterOutputStream;
+import com.velvetser.stream.VelvetInput;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 
@@ -37,9 +37,9 @@ public class DefaultVelvetSerializer implements VelvetSerializer {
     }
 
     @Override
-    public <T> T deserialize(InputStream stream, Class<T> clazz) {
+    public <T> T deserialize(VelvetInput input, Class<T> clazz) {
         ClassSchema.Field<T> field = schemaProvider.top(clazz);
-        return deserializeObjectFieldValue(field, new BetterInputStream(stream), new ReadContext());
+        return deserializeObjectFieldValue(field, new BetterInputStream(input), new ReadContext());
     }
 
     private <T> void serializeFinalObject(T object, Class<? extends T> clazz, BetterOutputStream

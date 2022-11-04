@@ -1,24 +1,17 @@
 package com.velvetser.stream;
 
-import com.velvetser.VelvetSerializerException;
 import lombok.RequiredArgsConstructor;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 @RequiredArgsConstructor
 public class BetterInputStream {
 
-    private final InputStream stream;
+    private final VelvetInput velvetInput;
     private final byte[] buffer = new byte[4096];
 
     public byte readByte() {
-        try {
-            return (byte) stream.read();
-        } catch (IOException e) {
-            throw new VelvetSerializerException("Read error", e);
-        }
+        return velvetInput.readByte();
     }
 
     public short readShort() {
@@ -32,26 +25,26 @@ public class BetterInputStream {
     }
 
     private void bufferRead(int len) {
-        readBytes(buffer, len);
+        velvetInput.readBytes(buffer, len);
     }
 
     public int readVarInt() {
-        byte b = readByte();
+        byte b = velvetInput.readByte();
         boolean negative = (b & 0x40) != 0;
         int result = b & 0x3F;
         for (int shift = 6; shift <= 27 && (b & 0x80) != 0; shift += 7) {
-            b = readByte();
+            b = velvetInput.readByte();
             result |= ((b & 0x7F) << shift);
         }
         return negative ? -(result + 1) : result;
     }
 
     public long readVarLong() {
-        byte b = readByte();
+        byte b = velvetInput.readByte();
         boolean negative = (b & 0x40) != 0;
         long result = b & 0x3F;
         for (int shift = 6; shift <= 55 && (b & 0x80) != 0; shift += 7) {
-            b = readByte();
+            b = velvetInput.readByte();
             result |= ((long) (b & (shift == 55 ? 0xFF : 0x7F)) << shift);
         }
         return negative ? -(result + 1) : result;
@@ -70,18 +63,11 @@ public class BetterInputStream {
             dest = buffer;
         else
             dest = new byte[control];
-        readBytes(dest, control);
+        velvetInput.readBytes(dest, control);
         return new String(dest, 0, control, StandardCharsets.UTF_8);
     }
 
-    public void readBytes(byte[] dest, int length) {
-        try {
-            for (int i = 0; i < length; i++)
-                dest[i] = (byte) stream.read();
-
-        } catch (IOException e) {
-            throw new VelvetSerializerException("Read error", e);
-        }
+    public void readBytes(byte[] value, int length) {
+        velvetInput.readBytes(value, length);
     }
-
 }

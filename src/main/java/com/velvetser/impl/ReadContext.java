@@ -7,9 +7,8 @@ import java.util.Map;
 
 public class ReadContext {
 
-    private Map<Integer, String> idToName = new HashMap<>();
-    private Map<String, Class<?>> nameToClass = new HashMap<>();
-
+    private final Map<Integer, String> idToName = new HashMap<>();
+    private final Map<String, Class<?>> nameToClass = new HashMap<>();
 
     public Class<?> loadById(int classId) {
         String className = idToName.get(classId);

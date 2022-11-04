@@ -2,12 +2,12 @@ package com.velvetser;
 
 import com.velvetser.stream.BetterInputStream;
 import com.velvetser.stream.BetterOutputStream;
+import com.velvetser.stream.VelvetInputs;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.LongStream;
@@ -30,7 +30,7 @@ class VarLenTest {
         bos.writeVarInt(i);
         bos.flush();
         byte[] bytes = baos.toByteArray();
-        BetterInputStream bis = new BetterInputStream(new ByteArrayInputStream(bytes));
+        BetterInputStream bis = new BetterInputStream(VelvetInputs.from(bytes));
         int actual = bis.readVarInt();
         System.out.println("" + i + " -> " + bytesToHex(bytes) + " -> " + actual);
         assertEquals(i, actual);
@@ -44,7 +44,7 @@ class VarLenTest {
         bos.writeVarLong(l);
         bos.flush();
         byte[] bytes = baos.toByteArray();
-        BetterInputStream bis = new BetterInputStream(new ByteArrayInputStream(bytes));
+        BetterInputStream bis = new BetterInputStream(VelvetInputs.from(bytes));
         long actual = bis.readVarLong();
         System.out.println("" + l + " -> " + bytesToHex(bytes) + " -> " + actual);
         assertEquals(l, actual);

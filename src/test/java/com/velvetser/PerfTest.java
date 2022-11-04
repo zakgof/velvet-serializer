@@ -11,7 +11,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -111,7 +110,7 @@ class PerfTest {
         VelvetSerializer serializer = VelvetSerializerBuilder.create()
                 .build();
         for (int i = 0; i < repeats; i++) {
-            T restored = serializer.deserialize(new ByteArrayInputStream(bytes), clazz);
+            T restored = serializer.deserialize(bytes, clazz);
             restored.toString();
         }
     }
@@ -136,7 +135,7 @@ class PerfTest {
         kryo.setRegistrationRequired(false);
         kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
         for (int i = 0; i < repeats; i++) {
-            Input inp = new Input(new ByteArrayInputStream(bytes));
+            Input inp = new Input(bytes);
             T restored = kryo.readObject(inp, clazz);
             restored.toString();
         }
